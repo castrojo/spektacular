@@ -326,13 +326,18 @@ func (c Context7Source) Search(ctx context.Context, terms []string, limit int) (
 	}
 	findings := []Finding{}
 	var lastErr error
+	// Docs are fetched for at most limit libraries, successful or not, so a
+	// long result list whose docs fail cannot turn one research call into a
+	// request per result.
+	attempts := 0
 	for _, lib := range body.Results {
-		if len(findings) == limit {
+		if attempts == limit {
 			break
 		}
 		if !validContext7ID(lib.ID) {
 			continue
 		}
+		attempts++
 		docsPath := lib.ID + "/llms.txt?" + url.Values{"topic": {query}, "tokens": {context7DocTokens}}.Encode()
 		docs, err := c.get(ctx, docsPath, context7MaxDocBytes)
 		if err != nil {

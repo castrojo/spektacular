@@ -250,3 +250,21 @@ func TestDescribeBytesMatchesFileSearch(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, hits[0], described)
 }
+
+// Failing docs count against the limit, so a long result list whose docs all
+// fail costs at most limit doc requests rather than one per result.
+func TestContext7Source_BoundsDocAttemptsByLimit(t *testing.T) {
+	docRequests := 0
+	src := newContext7(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v2/libs/search" {
+			_, _ = w.Write([]byte(`{"results":[{"id":"/a/1"},{"id":"/a/2"},{"id":"/a/3"},{"id":"/a/4"},{"id":"/a/5"},{"id":"/a/6"}]}`))
+			return
+		}
+		docRequests++
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+
+	_, err := src.Search(context.Background(), []string{"x"}, 2)
+	require.Error(t, err)
+	require.Equal(t, 2, docRequests)
+}
